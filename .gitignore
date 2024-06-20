@@ -1,11 +1,11 @@
 .DS_Store
-node_modules
-/dist
+frontend/vue-image-gallery/node_modules/
+frontend/vue-image-gallery/dist/
 
 
 # local env files
-.env.local
-.env.*.local
+frontend/vue-image-gallery/.env.local
+frontend/vue-image-gallery/.env.*.local
 
 # Log files
 npm-debug.log*
