@@ -1,11 +1,11 @@
 .DS_Store
-frontend/vue-image-gallery/node_modules
-frontend/vue-image-gallery/dist/
+frontend/vuetify-project/node_modules/
+frontend/vuetify-project/dist/
 
 
 # local env files
-frontend/vue-image-gallery/.env.local
-frontend/vue-image-gallery/.env.*.local
+frontend/vuetify-project/.env.local
+frontend/vuetify-project/.env.*.local
 
 backend/__pycache__/
 
