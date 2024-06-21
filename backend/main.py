@@ -1,16 +1,26 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import asyncio
+import logging
+import json
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, FileResponse
-from typing import List, Dict
+from typing import List
+
+from fastapi.middleware.cors import CORSMiddleware
+from generate_svg import generate_svg, generate_tags
+import random
 
 app = FastAPI()
 
 # Lista przechowująca adresy URL obrazków
-images = [
-    {"id": 1, "url": "https://nrdc.org/sites/default/files/styles/huge_16x9_100/public/2023-04/talmie-peak-trail-wa-0pkjf1WRkU0.jpg.jpg?h=5ef39005&itok=_yOGQ1Xi", "tags": ["nature", "water"]},
-    {"id": 2, "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/New_York_City_at_night_HDR.jpg/1024px-New_York_City_at_night_HDR.jpg", "tags": ["city", "night"]},
-    {"id": 3, "url": "https://as2.ftcdn.net/v2/jpg/05/75/86/03/1000_F_575860305_xv2g4mWVLaM4rP8UBQcLLkXkUWu0jeJ9.jpg", "tags": ["nature", "forest"]},
-    # dodaj więcej obrazków, jeśli chcesz
-]
+images = []
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Zarządzanie połączeniami WebSocket
 class ConnectionManager:
@@ -24,9 +34,15 @@ class ConnectionManager:
     def disconnect(self, websocket: WebSocket):
         self.active_connections.remove(websocket)
 
-    async def broadcast(self, message: str):
+    async def send_message(self, message: str):
         for connection in self.active_connections:
-            await connection.send_text(message)
+            try:
+                await connection.send_text(message)
+            except WebSocketDisconnect:
+                self.active_connections.remove(connection)
+            except Exception as e:
+                logging.error(f"Error occurred: {e}")
+                self.active_connections.remove(connection)
 
 manager = ConnectionManager()
 
@@ -35,19 +51,45 @@ manager = ConnectionManager()
 async def get():
     return HTMLResponse(html)
 
-"""
 # Endpoint do dodawania obrazków
-@app.post("/add_image/")
-async def add_image(image_url: str):
-    images_urls.append(image_url)
-    message = f"New image added: {image_url}"
-    await manager.broadcast(message)
+@app.post("/add_images/")
+async def add_image(n: int):
+    for i in range(n):
+        index = len(images)
+        tags = generate_tags()
+        image = generate_svg()
+        images.append({'id': index, 'tags': tags, 'svg': image})
+    
+    await manager.send_message(json.dumps({'number_of_images': n}))
     return {"message": "Image added"}
-"""
+
 # Endpoint do pobierania obrazków
-@app.get("/images", response_model=List[Dict])
+@app.get("/images/")
 async def get_images():
-    return images
+    info = [{'id': image['id'], 'tags': image['tags']} for image in images]
+    return info
+
+@app.get("/image/{id}")
+async def get_image(id: int):
+    n = random.randint(0, 10)
+    if n == 0:
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+    elif n == 1:
+        await asyncio.sleep(random.randint(3, 10))
+    return images[id]['svg']
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            await asyncio.sleep(1)
+            #await manager.broadcast(f"Client #{client_id} added: {data}")
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+        #await manager.broadcast(f"Client #{client_id} left the chat")
+
 
 html = """
 <!DOCTYPE html>
@@ -60,7 +102,7 @@ html = """
         <div id="images"></div>
         <script>
             // Pobierz obrazki po załadowaniu strony
-            fetch('/images')
+            fetch('/images/')
                 .then(response => response.json())
                 .then(data => {
                     const imagesDiv = document.getElementById('images');

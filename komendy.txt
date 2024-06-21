@@ -1,1 +1,5 @@
-python -m uvicorn server:app --reload
+python -m uvicorn main:app --reload
+npm install
+npm run dev
+
+npm create vuetify@latest
